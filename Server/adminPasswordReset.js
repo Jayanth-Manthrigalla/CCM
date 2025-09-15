@@ -2,7 +2,7 @@
 // In-memory store for OTPs
 const otps = {};
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const crypto = require('crypto');
+
 // const { sendEmail } = require('./adminAuth'); // Assuming sendEmail is exported here
 
 function generateOTP() {

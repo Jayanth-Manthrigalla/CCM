@@ -18,6 +18,16 @@ function setOTP(email, otp) {
   };
 }
 
+function setOTPWithPassword(email, otp, newPasswordHash) {
+  if (otps[email] && otps[email].timeout) clearTimeout(otps[email].timeout);
+  otps[email] = {
+    otp,
+    newPasswordHash, // Store the new password hash temporarily
+    expires: Date.now() + OTP_EXPIRY_MS,
+    timeout: setTimeout(() => { delete otps[email]; }, OTP_EXPIRY_MS)
+  };
+}
+
 function verifyOTP(email, otp) {
   const entry = otps[email];
   if (!entry) return { valid: false, reason: 'No OTP requested or expired.' };
@@ -26,7 +36,7 @@ function verifyOTP(email, otp) {
     return { valid: false, reason: 'OTP expired.' };
   }
   if (entry.otp !== otp) return { valid: false, reason: 'Invalid OTP.' };
-  return { valid: true };
+  return { valid: true, newPasswordHash: entry.newPasswordHash };
 }
 
 function clearOTP(email) {
@@ -37,6 +47,7 @@ function clearOTP(email) {
 module.exports = {
   generateOTP,
   setOTP,
+  setOTPWithPassword,
   verifyOTP,
   clearOTP,
   otps,

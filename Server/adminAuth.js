@@ -1,9 +1,10 @@
 const express = require('express');
 const sql = require('mssql');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const router = express.Router();
-const { sendEmail, getAccessToken } = require('./Index');
+const { sendEmail, getAccessToken } = require('./emailUtils');
 
 const config = {
   server: process.env.SQL_SERVER,
@@ -27,24 +28,34 @@ router.use(cookieParser());
 // Admin login route (sets httpOnly cookie)
 router.post('/api/admin-login', async (req, res) => {
     const { username, password } = req.body;
+    console.log('Login attempt:', { username, passwordLength: password?.length });
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
             .input('username', sql.VarChar(100), username)
             .query('SELECT * FROM Admins WHERE username = @username');
         const admin = result.recordset[0];
-        if (admin && password === admin.password) {
-            // Generate JWT token
-            const token = jwt.sign({ username: admin.username, role: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
-            res.cookie('authToken', token, {
-                httpOnly: true,
-                secure: true,
-                sameSite: 'Strict',
-                maxAge: 3600000 // 1 hour
-            });
-            res.json({ success: true }); // Do NOT send token in body
+        console.log('Admin found:', admin ? 'Yes' : 'No');
+        if (admin) {
+            const passwordMatch = await bcrypt.compare(password, admin.password);
+            console.log('Password match:', passwordMatch);
+            if (passwordMatch) {
+                // Generate JWT token
+                const token = jwt.sign({ username: admin.username, role: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
+                console.log('Setting cookie with token:', token.substring(0, 20) + '...');
+                res.cookie('authToken', token, {
+                    httpOnly: true,
+                    secure: false, // Set to true in production with HTTPS
+                    sameSite: 'Lax',
+                    maxAge: 3600000 // 1 hour
+                });
+                console.log('Sending success response');
+                res.json({ success: true }); // Do NOT send token in body
+            } else {
+                res.status(401).json({ success: false, message: 'Invalid credentials' });
+            }
         } else {
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
+            res.status(401).json({ success: false, message: 'Admin not found' });
         }
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });

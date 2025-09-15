@@ -2,10 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const cookieParser = require('cookie-parser');
 const adminAuthRouter = require('./adminAuth');
 const adminPasswordReset = require('./adminPasswordReset');
-const axios = require('axios');
-const msal = require('@azure/msal-node');
+const { sendEmail, getAccessToken } = require('./emailUtils');
 
 const app = express();
 app.use(cors({
@@ -14,7 +16,7 @@ app.use(cors({
   credentials: true
 }));
 
-
+app.use(cookieParser());
 app.use(express.json());
 
 // Azure MSSQL config
@@ -30,58 +32,7 @@ const config = {
   }
 };
 
-// MSAL and email setup
-const AAD_TENANT_ID = process.env.AAD_TENANT_ID;
-const AAD_CLIENT_ID = process.env.AAD_CLIENT_ID;
-const AAD_CLIENT_SECRET = process.env.AAD_CLIENT_SECRET;
-const USER_ID = process.env.USER_ID; // sender email
 
-const msalConfig = {
-    auth: {
-        clientId: AAD_CLIENT_ID,
-        authority: `https://login.microsoftonline.com/${AAD_TENANT_ID}`,
-        clientSecret: AAD_CLIENT_SECRET,
-    },
-};
-const cca = new msal.ConfidentialClientApplication(msalConfig);
-
-async function getAccessToken() {
-    const tokenRequest = {
-        scopes: ['https://graph.microsoft.com/.default'],
-    };
-    try {
-        const response = await cca.acquireTokenByClientCredential(tokenRequest);
-        return response.accessToken;
-    } catch (error) {
-        console.error('Error acquiring access token:', error.message);
-        throw new Error('Could not acquire access token.');
-    }
-}
-
-async function sendEmail(accessToken, mailOptions) {
-    if (!accessToken) throw new Error('Access token is missing.');
-    if (!mailOptions || !mailOptions.to || !mailOptions.subject || !mailOptions.body) throw new Error('Mail options (to, subject, body) are required.');
-    const sendMailEndpoint = `https://graph.microsoft.com/v1.0/users/${USER_ID}/sendMail`;
-    const emailMessage = {
-        message: {
-            subject: mailOptions.subject,
-            body: { contentType: 'HTML', content: mailOptions.body },
-            toRecipients: [{ emailAddress: { address: mailOptions.to } }],
-        },
-        saveToSentItems: 'true',
-    };
-    try {
-        await axios.post(sendMailEndpoint, emailMessage, {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
-        });
-    } catch (error) {
-        console.error('Error sending email:', error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
-        throw new Error('Failed to send email.');
-    }
-}
 
 // POST: insert form data
 app.post('/api/contact', async (req, res) => {
@@ -379,6 +330,142 @@ app.post('/api/admin-reset-password', async (req, res) => {
   }
 });
 
+// Change Password: Step 1 - Validate current password & new passwords, then send OTP
+app.post('/api/admin-change-password-request', async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  const token = req.cookies.authToken;
+  
+  console.log('Change password request:', { currentPassword: '***', newPassword: '***', confirmPassword: '***' });
+  
+  if (!token) return res.status(401).json({ success: false, message: 'Not authenticated' });
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({ success: false, message: 'All fields are required' });
+  }
+  
+  // Frontend validation check (redundant but safe)
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ success: false, message: 'New passwords do not match' });
+  }
+  
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+    const pool = await sql.connect(config);
+    
+    // Verify current password
+    const result = await pool.request()
+      .input('username', sql.VarChar(100), decoded.username)
+      .query('SELECT * FROM Admins WHERE username = @username');
+    
+    const admin = result.recordset[0];
+    if (!admin) {
+      return res.status(400).json({ success: false, message: 'Admin not found' });
+    }
+    
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Admin email not configured' });
+    }
+    
+    // Compare current password with bcrypt
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+    console.log('Current password valid:', isCurrentPasswordValid);
+    
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+    
+    // Temporarily store the new password hash for later use (when OTP is verified)
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    
+    // Generate OTP and store it with the new password hash
+    const otp = adminPasswordReset.generateOTP();
+    adminPasswordReset.setOTPWithPassword(decoded.username, otp, newPasswordHash);
+    
+    console.log('Generated OTP for user:', decoded.username);
+    
+    // Send OTP via email
+    const accessToken = await getAccessToken();
+    await sendEmail(accessToken, {
+      to: admin.email,
+      subject: 'Password Change Verification Code',
+      body: `<p>You have requested to change your password.</p><p>Your verification code is: <b>${otp}</b></p><p>This code will expire in 5 minutes.</p><p>If you did not request this change, please ignore this email.</p>`
+    });
+    
+    console.log('OTP email sent successfully');
+    res.json({ success: true, message: 'Verification code sent to your email' });
+  } catch (err) {
+    console.error('Change password request error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Change Password: Step 2 - Verify OTP and update password
+app.post('/api/admin-change-password-confirm', async (req, res) => {
+  const { otp } = req.body;
+  const token = req.cookies.authToken;
+  
+  console.log('Change password confirm request:', { otp: otp ? 'provided' : 'missing' });
+  
+  if (!token) return res.status(401).json({ success: false, message: 'Not authenticated' });
+  if (!otp) {
+    return res.status(400).json({ success: false, message: 'Verification code is required' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+    
+    // Verify OTP and get the stored password hash
+    const otpResult = adminPasswordReset.verifyOTP(decoded.username, otp);
+    if (!otpResult.valid) {
+      return res.status(400).json({ success: false, message: otpResult.reason });
+    }
+    
+    // Use the pre-hashed password that was stored with the OTP
+    const newPasswordHash = otpResult.newPasswordHash;
+    if (!newPasswordHash) {
+      return res.status(400).json({ success: false, message: 'Invalid session. Please restart password change process.' });
+    }
+    
+    console.log('Updating password in database');
+    
+    // Update password in database
+    const pool = await sql.connect(config);
+    const updateResult = await pool.request()
+      .input('username', sql.VarChar(100), decoded.username)
+      .input('password', sql.VarChar(255), newPasswordHash)
+      .query('UPDATE Admins SET password = @password WHERE username = @username');
+    
+    console.log('Password updated, rows affected:', updateResult.rowsAffected[0]);
+    
+    // Clear OTP
+    adminPasswordReset.clearOTP(decoded.username);
+    
+    // Get admin email for confirmation
+    const adminResult = await pool.request()
+      .input('username', sql.VarChar(100), decoded.username)
+      .query('SELECT email FROM Admins WHERE username = @username');
+    
+    const adminEmail = adminResult.recordset[0]?.email;
+    
+    // Send confirmation email
+    const accessToken = await getAccessToken();
+    await sendEmail(accessToken, {
+      to: adminEmail,
+      subject: 'Password Successfully Changed',
+      body: `<p>Your password has been successfully changed on ${new Date().toLocaleString()}.</p><p>If you did not make this change, please contact support immediately.</p>`
+    });
+    
+    console.log('Password change confirmation email sent');
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Change password confirm error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.use(adminAuthRouter);
 
 app.get("/", (req, res) => {
@@ -387,6 +474,3 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
-
-// Export for use in other modules
-module.exports = { sendEmail, getAccessToken };

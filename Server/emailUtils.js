@@ -3,21 +3,40 @@ require('dotenv').config();
 const axios = require('axios');
 const msal = require('@azure/msal-node');
 
-const msalConfig = {
-    auth: {
-        clientId: process.env.AAD_CLIENT_ID,
-        authority: `https://login.microsoftonline.com/${process.env.AAD_TENANT_ID}`,
-        clientSecret: process.env.AAD_CLIENT_SECRET,
-    },
-};
-const cca = new msal.ConfidentialClientApplication(msalConfig);
+let cca = null;
+
+function initializeMsalClient() {
+    if (!cca) {
+        try {
+            const msalConfig = {
+                auth: {
+                    clientId: process.env.AAD_CLIENT_ID,
+                    authority: `https://login.microsoftonline.com/${process.env.AAD_TENANT_ID}`,
+                    clientSecret: process.env.AAD_CLIENT_SECRET,
+                },
+            };
+            
+            // Validate that all required config is present
+            if (!process.env.AAD_CLIENT_ID || !process.env.AAD_TENANT_ID || !process.env.AAD_CLIENT_SECRET) {
+                throw new Error('Missing required Azure AD configuration');
+            }
+            
+            cca = new msal.ConfidentialClientApplication(msalConfig);
+        } catch (error) {
+            console.error('Failed to initialize MSAL client:', error.message);
+            throw error;
+        }
+    }
+    return cca;
+}
 
 async function getAccessToken() {
     const tokenRequest = {
         scopes: ['https://graph.microsoft.com/.default'],
     };
     try {
-        const response = await cca.acquireTokenByClientCredential(tokenRequest);
+        const msalClient = initializeMsalClient();
+        const response = await msalClient.acquireTokenByClientCredential(tokenRequest);
         return response.accessToken;
     } catch (error) {
         console.error('Error acquiring access token:', error.message);

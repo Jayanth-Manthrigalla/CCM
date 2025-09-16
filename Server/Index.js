@@ -7,12 +7,36 @@ const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const adminAuthRouter = require('./adminAuth');
 const adminPasswordReset = require('./adminPasswordReset');
-const { sendEmail, getAccessToken } = require('./emailUtils');
+const userManagement = require('./userManagement');
+
+// Initialize email utils with error handling
+let sendEmail = null;
+let getAccessToken = null;
+
+try {
+  const emailUtils = require('./emailUtils');
+  sendEmail = emailUtils.sendEmail;
+  getAccessToken = emailUtils.getAccessToken;
+  console.log('Email services initialized successfully');
+} catch (error) {
+  console.warn('Email services not available:', error.message);
+  console.log('Server will run without email functionality');
+  
+  // Create fallback functions
+  sendEmail = async (accessToken, mailOptions) => {
+    console.log(`Email service not available - would have sent email to ${mailOptions?.to} with subject: ${mailOptions?.subject}`);
+    return Promise.resolve();
+  };
+  getAccessToken = async () => {
+    console.log('Email service not available - returning dummy token');
+    return Promise.resolve('dummy-token');
+  };
+}
 
 const app = express();
 app.use(cors({
   origin: 'http://localhost:3000', // your Netlify site URL
-  methods: ['POST', 'GET', 'PATCH'],
+  methods: ['POST', 'GET', 'PATCH', 'DELETE'],
   credentials: true
 }));
 
@@ -462,6 +486,450 @@ app.post('/api/admin-change-password-confirm', async (req, res) => {
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (err) {
     console.error('Change password confirm error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// User Management API Endpoints
+
+// Debug endpoint to check cookies
+app.get('/api/debug-auth', (req, res) => {
+  console.log('Cookies received:', req.cookies);
+  console.log('Token present:', !!req.cookies.authToken);
+  if (req.cookies.authToken) {
+    try {
+      const decoded = jwt.verify(req.cookies.authToken, process.env.JWT_SECRET || 'supersecretkey');
+      console.log('Token decoded successfully:', decoded);
+      res.json({ 
+        success: true, 
+        hasToken: true, 
+        tokenValid: true,
+        user: { email: decoded.email, role: decoded.role }
+      });
+    } catch (error) {
+      console.log('Token verification failed:', error.message);
+      res.json({ 
+        success: false, 
+        hasToken: true, 
+        tokenValid: false,
+        error: error.message
+      });
+    }
+  } else {
+    res.json({ 
+      success: false, 
+      hasToken: false, 
+      cookies: req.cookies 
+    });
+  }
+});
+
+// Get all users (Admin only)
+app.get('/api/users', async (req, res) => {
+  try {
+    // Verify admin authentication
+    const token = req.cookies.authToken; // Changed from 'token' to 'authToken'
+    console.log('Token from cookies:', token ? 'Present' : 'Missing');
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const result = await userManagement.getAllUsers();
+    if (result.success) {
+      res.json({ success: true, users: result.users });
+    } else {
+      res.status(500).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Create invitation (Admin only)
+app.post('/api/invites', async (req, res) => {
+  try {
+    // Verify admin authentication
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    let adminEmail;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+      adminEmail = decoded.email;
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const { email, firstName, lastName, role } = req.body;
+    
+    // Validate input
+    if (!email || !firstName || !lastName || !role) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+    
+    if (!['manager'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role specified' });
+    }
+
+    const result = await userManagement.createInvite(
+      { email, firstName, lastName, role },
+      adminEmail
+    );
+
+    if (result.success) {
+      // Send invitation email
+      const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/accept-invite?token=${result.token}`;
+      const emailContent = `
+        <h2>You're Invited to Join CCM Website</h2>
+        <p>Dear ${firstName} ${lastName},</p>
+        <p>You have been invited by ${adminEmail} to join the CCM Website as a ${role}.</p>
+        <p><strong>Click the link below to accept your invitation and set up your password:</strong></p>
+        <p><a href="${inviteLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Accept Invitation</a></p>
+        <p>This invitation will expire in 5 minutes for security reasons.</p>
+        <p>If you can't click the link, copy and paste this URL into your browser:</p>
+        <p>${inviteLink}</p>
+        <br>
+        <p>Best regards,<br>CCM Website Team</p>
+      `;
+
+      try {
+        const accessToken = await getAccessToken();
+        await sendEmail(accessToken, {
+          to: email,
+          subject: 'Invitation to Join CCM Website',
+          body: emailContent
+        });
+        res.json({ 
+          success: true, 
+          message: 'Invitation sent successfully',
+          inviteId: result.inviteId
+        });
+      } catch (emailError) {
+        console.error('Failed to send invitation email:', emailError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Invitation created but email sending failed' 
+        });
+      }
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error creating invitation:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get pending invitations (Admin only)
+app.get('/api/invites', async (req, res) => {
+  try {
+    console.log('=== GET /api/invites Request ===');
+    console.log('Cookies received:', req.cookies);
+    console.log('Headers:', req.headers.cookie);
+    
+    // Verify admin authentication
+    const token = req.cookies.authToken;
+    console.log('AuthToken present:', !!token);
+    if (!token) {
+      console.log('No token provided - sending 401');
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      console.log('Token decoded successfully:', decoded);
+      if (decoded.role !== 'admin') {
+        console.log('User is not admin - sending 403');
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+    } catch (jwtError) {
+      console.log('JWT verification failed:', jwtError.message);
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const result = await userManagement.getPendingInvites();
+    if (result.success) {
+      res.json({ success: true, invites: result.invites });
+    } else {
+      res.status(500).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error getting invites:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Resend invitation (Admin only)
+app.post('/api/invites/:id/resend', async (req, res) => {
+  try {
+    // Verify admin authentication
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    let adminEmail;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+      adminEmail = decoded.email;
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const inviteId = parseInt(req.params.id);
+    const result = await userManagement.resendInvite(inviteId, adminEmail);
+
+    if (result.success) {
+      // Send new invitation email
+      const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/accept-invite?token=${result.token}`;
+      const emailContent = `
+        <h2>Invitation Reminder - Join CCM Website</h2>
+        <p>Dear ${result.invite.firstName} ${result.invite.lastName},</p>
+        <p>This is a reminder of your invitation to join the CCM Website as a ${result.invite.role}.</p>
+        <p><strong>Click the link below to accept your invitation and set up your password:</strong></p>
+        <p><a href="${inviteLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Accept Invitation</a></p>
+        <p>This invitation will expire in 5 minutes for security reasons.</p>
+        <p>If you can't click the link, copy and paste this URL into your browser:</p>
+        <p>${inviteLink}</p>
+        <br>
+        <p>Best regards,<br>CCM Website Team</p>
+      `;
+
+      try {
+        const accessToken = await getAccessToken();
+        await sendEmail(accessToken, {
+          to: result.invite.email,
+          subject: 'Invitation Reminder - Join CCM Website',
+          body: emailContent
+        });
+        res.json({ success: true, message: 'Invitation resent successfully' });
+      } catch (emailError) {
+        console.error('Failed to resend invitation email:', emailError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Invitation updated but email sending failed' 
+        });
+      }
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error resending invitation:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Public endpoint to validate invitation token
+app.get('/api/validate-invite', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Token is required' });
+    }
+
+    const result = await userManagement.validateInviteToken(token);
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        invite: {
+          email: result.invite.email,
+          firstName: result.invite.firstName,
+          lastName: result.invite.lastName,
+          role: result.invite.role
+        }
+      });
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error validating invitation:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Public endpoint to accept invitation
+app.post('/api/accept-invite', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: 'Token and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password must be at least 8 characters long' 
+      });
+    }
+
+    const result = await userManagement.acceptInvitation(token, password);
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: 'Account created successfully',
+        user: result.user
+      });
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Manager Password Change API Endpoints
+
+// Request manager password change (Admin only)
+app.post('/api/manager/change-password/request', async (req, res) => {
+  try {
+    // Verify admin authentication
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    let adminEmail;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+      adminEmail = decoded.email;
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const { managerEmail, newPassword } = req.body;
+    
+    if (!managerEmail || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Manager email and new password are required' 
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password must be at least 8 characters long' 
+      });
+    }
+
+    // Hash the new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // Create OTP for verification
+    const result = await userManagement.createManagerPasswordChangeOTP(
+      adminEmail, 
+      managerEmail, 
+      newPasswordHash
+    );
+
+    if (result.success) {
+      // Send OTP email to admin
+      const emailContent = `
+        <h2>Manager Password Change Verification</h2>
+        <p>Dear Admin,</p>
+        <p>You have requested to change the password for manager: <strong>${managerEmail}</strong></p>
+        <p><strong>Your verification code is: ${result.otp}</strong></p>
+        <p>This code will expire in 5 minutes for security reasons.</p>
+        <p>Enter this code in the admin dashboard to confirm the password change.</p>
+        <br>
+        <p>If you did not request this change, please ignore this email.</p>
+        <br>
+        <p>Best regards,<br>CCM Website Security Team</p>
+      `;
+
+      try {
+        const accessToken = await getAccessToken();
+        await sendEmail(accessToken, {
+          to: adminEmail,
+          subject: 'Manager Password Change - Verification Required',
+          body: emailContent
+        });
+        res.json({ 
+          success: true, 
+          message: 'Verification code sent to your email',
+          expiresAt: result.expiresAt
+        });
+      } catch (emailError) {
+        console.error('Failed to send OTP email:', emailError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'OTP created but email sending failed' 
+        });
+      }
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error requesting manager password change:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Confirm manager password change (Admin only)
+app.post('/api/manager/change-password/confirm', async (req, res) => {
+  try {
+    // Verify admin authentication
+    const token = req.cookies.authToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    let adminEmail;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
+      if (decoded.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+      adminEmail = decoded.email;
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    const { managerEmail, otp } = req.body;
+    
+    if (!managerEmail || !otp) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Manager email and OTP are required' 
+      });
+    }
+
+    const result = await userManagement.verifyManagerPasswordChangeOTP(
+      adminEmail, 
+      managerEmail, 
+      otp
+    );
+
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (error) {
+    console.error('Error confirming manager password change:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

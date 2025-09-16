@@ -19,6 +19,7 @@ import CaseManagementGroups from './pages/WhoWeHelp/CaseManagementGroups';
 import AdminLogin from './pages/AdminLogin';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import AdminDashboard from './pages/AdminDashboard';
+import AcceptInvite from './pages/AcceptInvite';
 import ContactSection from './components/ContactSection';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -54,6 +55,7 @@ function App() {
           <Route path="/contact" element={<ContactSection />} />
           {/* your existing routes */}
           <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route
             path="/admin-dashboard"
             element={

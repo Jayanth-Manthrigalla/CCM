@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
+import UserManagementModal from '../components/UserManagementModal';
+import ManagerPasswordChangeModal from '../components/ManagerPasswordChangeModal';
 
 const PAGE_SIZE = 10;
 
@@ -20,6 +22,8 @@ const AdminDashboard = () => {
   const [view, setView] = useState('Dashboard');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showManagerPasswordChange, setShowManagerPasswordChange] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1); // 1: old password, 2: OTP + new password
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '',
@@ -195,6 +199,12 @@ const AdminDashboard = () => {
           </button>
           {showProfileDropdown && (
             <div className="dropdown-menu">
+              <div className="dropdown-item" onClick={() => setShowUserManagement(true)}>
+                User Management
+              </div>
+              <div className="dropdown-item" onClick={() => setShowManagerPasswordChange(true)}>
+                Manage Account
+              </div>
               <div className="dropdown-item" onClick={() => setShowChangePassword(true)}>
                 Change Password
               </div>
@@ -367,6 +377,18 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* User Management Modal */}
+      <UserManagementModal 
+        isVisible={showUserManagement} 
+        onClose={() => setShowUserManagement(false)} 
+      />
+
+      {/* Manager Password Change Modal */}
+      <ManagerPasswordChangeModal 
+        isVisible={showManagerPasswordChange} 
+        onClose={() => setShowManagerPasswordChange(false)} 
+      />
     </div>
   );
 };

@@ -41,7 +41,11 @@ router.post('/api/admin-login', async (req, res) => {
             console.log('Password match:', passwordMatch);
             if (passwordMatch) {
                 // Generate JWT token
-                const token = jwt.sign({ username: admin.username, role: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
+                const token = jwt.sign({ 
+                  username: admin.username, 
+                  email: admin.email || admin.username, // Use email if available, fallback to username
+                  role: 'admin' 
+                }, JWT_SECRET, { expiresIn: '1h' });
                 console.log('Setting cookie with token:', token.substring(0, 20) + '...');
                 res.cookie('authToken', token, {
                     httpOnly: true,

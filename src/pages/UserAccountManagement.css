@@ -1,0 +1,581 @@
+/* User Account Management Page Styles */
+.user-account-management-container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  font-family: 'Lato', 'Segoe UI', Arial, sans-serif;
+}
+
+/* Header Section */
+.management-header {
+  background: #fff;
+  border-bottom: 2px solid #eaf4fb;
+  padding: 1.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-to-dashboard-btn {
+  background: #f8f9fa;
+  color: #15396a;
+  border: 1px solid #ddd;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.back-to-dashboard-btn:hover {
+  background: #e9ecef;
+  color: #0d2d4a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.page-title {
+  color: #15396a;
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+/* Profile Dropdown */
+.profile-dropdown {
+  position: relative;
+}
+
+.profile-btn {
+  background: #3c94e1;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(60, 148, 225, 0.2);
+}
+
+.profile-btn:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(60, 148, 225, 0.3);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  margin-top: 0.5rem;
+}
+
+.dropdown-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s ease;
+  font-weight: 500;
+}
+
+.dropdown-item:hover {
+  background: #f8f9fa;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.dropdown-item:first-child {
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+/* Management Sections */
+.management-section {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgba(60, 148, 225, 0.10);
+  border: 1px solid #f0f0f0;
+}
+
+.section-header {
+  margin-bottom: 2rem;
+  text-align: center;
+  border-bottom: 2px solid #eaf4fb;
+  padding-bottom: 1rem;
+}
+
+.section-header h2 {
+  color: #15396a;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.section-header p {
+  color: #666;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Management Tabs */
+.management-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: #f8f9fa;
+  color: #666;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.tab-btn.active {
+  background: #3c94e1;
+  color: white;
+  box-shadow: 0 2px 8px rgba(60, 148, 225, 0.2);
+}
+
+.tab-btn:hover:not(.active) {
+  background: #e9ecef;
+  color: #333;
+}
+
+/* Management Content */
+.management-content {
+  margin-top: 1.5rem;
+}
+
+.users-section,
+.invite-section,
+.invites-section {
+  padding: 1rem 0;
+}
+
+.users-section h3,
+.invite-section h3,
+.invites-section h3 {
+  color: #15396a;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* Tables */
+.management-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 2px 12px rgba(60, 148, 225, 0.08);
+  overflow: hidden;
+}
+
+.management-table th,
+.management-table td {
+  padding: 1rem 0.7rem;
+  text-align: left;
+}
+
+.management-table th {
+  background: #eaf4fb;
+  color: #15396a;
+  font-size: 1rem;
+  font-weight: 700;
+  border-bottom: 2px solid #c9e7fa;
+}
+
+.management-table tr:nth-child(even) {
+  background: #f7fbff;
+}
+
+.management-table tr:hover {
+  background: #eaf4fb;
+  transition: background 0.2s;
+}
+
+.management-table td {
+  color: #333;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Form Styling */
+.invite-form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #15396a;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3c94e1;
+  box-shadow: 0 0 0 3px rgba(60, 148, 225, 0.1);
+}
+
+/* Button Styling */
+.invite-btn,
+.submit-btn,
+.resend-btn {
+  background: #3c94e1;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  min-width: 120px;
+}
+
+.invite-btn:hover:not(:disabled),
+.submit-btn:hover:not(:disabled),
+.resend-btn:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(60, 148, 225, 0.3);
+}
+
+.invite-btn:disabled,
+.submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.back-btn {
+  background: #f8f9fa;
+  color: #666;
+  border: 1px solid #ddd;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.back-btn:hover {
+  background: #e9ecef;
+  color: #333;
+}
+
+/* Role and Status Badges */
+.role-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+/* Account Content */
+.account-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.account-section {
+  padding: 1.5rem;
+  border: 1px solid #eee;
+  border-radius: 0.75rem;
+  background: #fafafa;
+}
+
+.account-section h3 {
+  color: #15396a;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.5rem;
+}
+
+.account-section h4 {
+  color: #15396a;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.change-password-form,
+.manager-password-form {
+  max-width: 100%;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.verification-info {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid #3c94e1;
+}
+
+.verification-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+.security-note {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.security-note p {
+  color: #666;
+  font-style: italic;
+}
+
+.no-managers {
+  color: #856404;
+  background: #fff3cd;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.no-data {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 2rem;
+}
+
+.loading {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+  font-size: 1rem;
+}
+
+/* Error and Success Messages */
+.error-message {
+  color: #e74c3c;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fdf2f2;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.success-message {
+  color: #27ae60;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-message button,
+.success-message button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-message button:hover,
+.success-message button:hover {
+  opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .header-left {
+    justify-content: space-between;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .management-section {
+    margin: 1rem;
+    padding: 1rem;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .account-content {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .management-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .tab-btn {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .section-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .management-table {
+    font-size: 0.85rem;
+  }
+  
+  .management-table th,
+  .management-table td {
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 1.25rem;
+  }
+  
+  .back-to-dashboard-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  .profile-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+}

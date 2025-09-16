@@ -19,6 +19,7 @@ import CaseManagementGroups from './pages/WhoWeHelp/CaseManagementGroups';
 import AdminLogin from './pages/AdminLogin';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import AdminDashboard from './pages/AdminDashboard';
+import UserAccountManagement from './pages/UserAccountManagement';
 import AcceptInvite from './pages/AcceptInvite';
 import ContactSection from './components/ContactSection';
 import { useEffect } from 'react';
@@ -61,6 +62,14 @@ function App() {
             element={
               <AdminProtectedRoute>
                 <AdminDashboard />
+              </AdminProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-account-management"
+            element={
+              <AdminProtectedRoute>
+                <UserAccountManagement />
               </AdminProtectedRoute>
             }
           />

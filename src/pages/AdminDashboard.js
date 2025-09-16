@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
-import UserManagementModal from '../components/UserManagementModal';
-import ManagerPasswordChangeModal from '../components/ManagerPasswordChangeModal';
 
 const PAGE_SIZE = 10;
 
@@ -14,6 +12,7 @@ const STATUS_MAP = {
   'Archived': 'archived',
   'View All': 'all',
 };
+
 const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,19 +20,7 @@ const AdminDashboard = () => {
   const [page, setPage] = useState(1);
   const [view, setView] = useState('Dashboard');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [showUserManagement, setShowUserManagement] = useState(false);
-  const [showManagerPasswordChange, setShowManagerPasswordChange] = useState(false);
-  const [passwordStep, setPasswordStep] = useState(1); // 1: old password, 2: OTP + new password
-  const [passwordForm, setPasswordForm] = useState({
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-    otp: ''
-  });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
+
   const navigate = useNavigate();
 
   // Fetch submissions from backend based on view
@@ -72,79 +59,6 @@ const AdminDashboard = () => {
     } catch (err) {}
     navigate('/admin');
   };
-
-  // Change Password Handlers
-  const handleChangePasswordRequest = async (e) => {
-    e.preventDefault();
-    
-    // Frontend validation
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters');
-      return;
-    }
-    
-    setPasswordError(''); setPasswordSuccess(''); setPasswordLoading(true);
-    try {
-      const res = await axios.post('http://localhost:5000/api/admin-change-password-request', 
-        { 
-          currentPassword: passwordForm.oldPassword,
-          newPassword: passwordForm.newPassword,
-          confirmPassword: passwordForm.confirmPassword
-        }, 
-        { withCredentials: true }
-      );
-      if (res.data.success) {
-        setPasswordStep(2);
-        setPasswordSuccess('Verification code sent to your email. Please check your inbox.');
-      } else {
-        setPasswordError(res.data.message || 'Failed to send verification code');
-      }
-    } catch (err) {
-      setPasswordError(err.response?.data?.message || 'Failed to send verification code');
-    }
-    setPasswordLoading(false);
-  };
-
-  const handleChangePasswordConfirm = async (e) => {
-    e.preventDefault();
-    
-    if (!passwordForm.otp) {
-      setPasswordError('Verification code is required');
-      return;
-    }
-    
-    setPasswordError(''); setPasswordSuccess(''); setPasswordLoading(true);
-    try {
-      const res = await axios.post('http://localhost:5000/api/admin-change-password-confirm', 
-        { otp: passwordForm.otp }, 
-        { withCredentials: true }
-      );
-      if (res.data.success) {
-        setPasswordSuccess('Password changed successfully!');
-        setTimeout(() => {
-          setShowChangePassword(false);
-          setPasswordStep(1);
-          setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '', otp: '' });
-          setPasswordError(''); setPasswordSuccess('');
-          setShowProfileDropdown(false);
-        }, 2000);
-      } else {
-        setPasswordError(res.data.message || 'Failed to change password');
-      }
-    } catch (err) {
-      setPasswordError(err.response?.data?.message || 'Failed to change password');
-    }
-    setPasswordLoading(false);
-  };
-
-  const handlePasswordFormChange = (field, value) => {
-    setPasswordForm(prev => ({ ...prev, [field]: value }));
-  };
-
 
   // Filter by search only (status is handled by backend)
   const searchFilter = (item) =>
@@ -199,13 +113,10 @@ const AdminDashboard = () => {
           </button>
           {showProfileDropdown && (
             <div className="dropdown-menu">
-              <div className="dropdown-item" onClick={() => setShowUserManagement(true)}>
+              <div className="dropdown-item" onClick={() => navigate('/user-account-management')}>
                 User Management
               </div>
-              <div className="dropdown-item" onClick={() => setShowManagerPasswordChange(true)}>
-                Manage Account
-              </div>
-              <div className="dropdown-item" onClick={() => setShowChangePassword(true)}>
+              <div className="dropdown-item" onClick={() => navigate('/user-account-management')}>
                 Change Password
               </div>
               <div className="dropdown-item" onClick={handleLogout}>
@@ -294,109 +205,11 @@ const AdminDashboard = () => {
           </div>
         </>
       )}
-
-      {/* Change Password Modal */}
-      {showChangePassword && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Change Password</h3>
-            {passwordStep === 1 ? (
-              <form onSubmit={handleChangePasswordRequest}>
-                <div className="form-group">
-                  <label>Current Password:</label>
-                  <input
-                    type="password"
-                    value={passwordForm.oldPassword}
-                    onChange={(e) => handlePasswordFormChange('oldPassword', e.target.value)}
-                    required
-                    placeholder="Enter your current password"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>New Password:</label>
-                  <input
-                    type="password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => handlePasswordFormChange('newPassword', e.target.value)}
-                    required
-                    placeholder="Enter new password (min 6 characters)"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Confirm New Password:</label>
-                  <input
-                    type="password"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => handlePasswordFormChange('confirmPassword', e.target.value)}
-                    required
-                    placeholder="Re-enter new password"
-                  />
-                </div>
-                {passwordError && <div className="error-message">{passwordError}</div>}
-                {passwordSuccess && <div className="success-message">{passwordSuccess}</div>}
-                <div className="modal-actions">
-                  <button type="submit" disabled={passwordLoading}>
-                    {passwordLoading ? 'Validating & Sending Code...' : 'Send Verification Code'}
-                  </button>
-                  <button type="button" onClick={() => setShowChangePassword(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleChangePasswordConfirm}>
-                <p style={{ marginBottom: '16px', color: '#666', fontSize: '14px' }}>
-                  We've sent a verification code to your email. Please enter it below to complete the password change.
-                </p>
-                <div className="form-group">
-                  <label>Verification Code:</label>
-                  <input
-                    type="text"
-                    value={passwordForm.otp}
-                    onChange={(e) => handlePasswordFormChange('otp', e.target.value)}
-                    required
-                    placeholder="Enter 6-digit code"
-                    maxLength={6}
-                  />
-                </div>
-                {passwordError && <div className="error-message">{passwordError}</div>}
-                {passwordSuccess && <div className="success-message">{passwordSuccess}</div>}
-                <div className="modal-actions">
-                  <button type="submit" disabled={passwordLoading}>
-                    {passwordLoading ? 'Changing Password...' : 'Confirm Password Change'}
-                  </button>
-                  <button type="button" onClick={() => setPasswordStep(1)}>
-                    Back
-                  </button>
-                  <button type="button" onClick={() => setShowChangePassword(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* User Management Modal */}
-      <UserManagementModal 
-        isVisible={showUserManagement} 
-        onClose={() => setShowUserManagement(false)} 
-      />
-
-      {/* Manager Password Change Modal */}
-      <ManagerPasswordChangeModal 
-        isVisible={showManagerPasswordChange} 
-        onClose={() => setShowManagerPasswordChange(false)} 
-      />
     </div>
   );
 };
 
-
 // MessageRow component for expandable/collapsible message cell
-
-
 const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
   const [expanded, setExpanded] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -405,8 +218,8 @@ const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
   const displayMessage = isLong && !expanded
     ? item.message.slice(0, 40) + '...'
     : item.message;
+  
   // Action handlers
-  // Backend expects PATCH for status/read updates
   const handleStatus = async (status) => {
     setActionLoading(true);
     try {
@@ -428,6 +241,7 @@ const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
     }
     setActionLoading(false);
   };
+  
   const handleRead = async (read) => {
     setActionLoading(true);
     try {
@@ -441,6 +255,7 @@ const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
     }
     setActionLoading(false);
   };
+  
   // Determine which buttons to show based on view/status
   let actionButtons = null;
   if (item.status === 'deleted') {
@@ -492,13 +307,14 @@ const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
       </>
     );
   }
-      return (
-        <tr style={{
-          ...item.status_read ? { opacity: 0.5, background: '#f0f0f0' } : {},
-          transform: isRemoving ? 'translateX(-100%)' : 'translateX(0)',
-          opacity: isRemoving ? 0 : (item.status_read ? 0.5 : 1),
-          transition: 'all 0.3s ease-out'
-        }}>
+  
+  return (
+    <tr style={{
+      ...item.status_read ? { opacity: 0.5, background: '#f0f0f0' } : {},
+      transform: isRemoving ? 'translateX(-100%)' : 'translateX(0)',
+      opacity: isRemoving ? 0 : (item.status_read ? 0.5 : 1),
+      transition: 'all 0.3s ease-out'
+    }}>
       <td>{item.name}</td>
       <td>{item.email}</td>
       <td>{item.phone}</td>
@@ -535,27 +351,27 @@ const MessageRow = ({ item, view, updateLocally, removeLocally }) => {
       <td>{new Date(item.submitted_at).toLocaleString()}</td>
       <td style={{ display: 'flex', gap: 8 }}>
         {actionButtons}
-            {item.status_read ? (
-              <button
-                type="button"
-                onClick={() => handleRead(false)}
-                title="Mark as Unread"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 20 }}
-                disabled={actionLoading}
-              >
-                <span role="img" aria-label="Unread">↩️</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleRead(true)}
-                title="Mark as Read"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#27ae60', fontSize: 20 }}
-                disabled={actionLoading}
-              >
-                <span role="img" aria-label="Read">✔️</span>
-              </button>
-            )}
+        {item.status_read ? (
+          <button
+            type="button"
+            onClick={() => handleRead(false)}
+            title="Mark as Unread"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 20 }}
+            disabled={actionLoading}
+          >
+            <span role="img" aria-label="Unread">↩️</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleRead(true)}
+            title="Mark as Read"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#27ae60', fontSize: 20 }}
+            disabled={actionLoading}
+          >
+            <span role="img" aria-label="Read">✔️</span>
+          </button>
+        )}
       </td>
     </tr>
   );

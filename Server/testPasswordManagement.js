@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { hashPassword, hashPasswordBatch, verifyPasswordHash, isBcryptHash } = require('./hashPassword');
-const { updateAdminPassword, getAdminInfo } = require('./updateAdminPassword');
-const { verifyAdminPassword, authenticateAdmin, getPasswordStatus } = require('./verifyPassword');
+const { getAdminInfo } = require('./updateAdminPassword');
+const { verifyAdminPassword,  getPasswordStatus } = require('./verifyPassword');
 
 /**
  * Comprehensive test suite for refactored password management scripts

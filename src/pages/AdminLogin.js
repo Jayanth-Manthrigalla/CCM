@@ -18,9 +18,11 @@ const AdminLogin = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/admin-login', { username, password }, { withCredentials: true });
+      const res = await axios.post('http://localhost:5000/api/unified-login', { username, password }, { withCredentials: true });
       if (res.data.success) {
         console.log('Login successful');
+        console.log('User role:', res.data.role);
+        console.log('User info:', res.data.user);
         // No localStorage/sessionStorage for auth! Cookie is set by backend
         navigate('/admin-dashboard');
       } else {

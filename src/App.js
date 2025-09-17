@@ -21,6 +21,7 @@ import AdminProtectedRoute from './components/AdminProtectedRoute';
 import AdminDashboard from './pages/AdminDashboard';
 import UserAccountManagement from './pages/UserAccountManagement';
 import AcceptInvite from './pages/AcceptInvite';
+import { UserProvider } from './contexts/UserContext';
 import ContactSection from './components/ContactSection';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -61,7 +62,9 @@ function App() {
             path="/admin-dashboard"
             element={
               <AdminProtectedRoute>
-                <AdminDashboard />
+                <UserProvider>
+                  <AdminDashboard />
+                </UserProvider>
               </AdminProtectedRoute>
             }
           />
@@ -69,7 +72,9 @@ function App() {
             path="/user-account-management"
             element={
               <AdminProtectedRoute>
-                <UserAccountManagement />
+                <UserProvider>
+                  <UserAccountManagement />
+                </UserProvider>
               </AdminProtectedRoute>
             }
           />

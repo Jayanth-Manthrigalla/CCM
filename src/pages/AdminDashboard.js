@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../contexts/UserContext';
 import './AdminDashboard.css';
 
 const PAGE_SIZE = 10;
@@ -22,6 +23,7 @@ const AdminDashboard = () => {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const navigate = useNavigate();
+  const { isAdmin } = useUser();
 
   // Fetch submissions from backend based on view
   const fetchSubmissions = async (status) => {
@@ -109,13 +111,15 @@ const AdminDashboard = () => {
             className="profile-btn"
             onClick={() => setShowProfileDropdown(!showProfileDropdown)}
           >
-            Admin ▼
+            {isAdmin ? 'Admin' : 'Manager'} ▼
           </button>
           {showProfileDropdown && (
             <div className="dropdown-menu">
-              <div className="dropdown-item" onClick={() => navigate('/user-account-management')}>
-                User Management
-              </div>
+              {isAdmin && (
+                <div className="dropdown-item" onClick={() => navigate('/user-account-management')}>
+                  User Management
+                </div>
+              )}
               <div className="dropdown-item" onClick={() => navigate('/user-account-management')}>
                 Change Password
               </div>

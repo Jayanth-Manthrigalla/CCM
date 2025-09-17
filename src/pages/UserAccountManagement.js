@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../contexts/UserContext';
 import './UserAccountManagement.css';
 
 const UserAccountManagement = () => {
@@ -45,6 +46,7 @@ const UserAccountManagement = () => {
   const [managerPasswordLoading, setManagerPasswordLoading] = useState(false);
 
   const navigate = useNavigate();
+  const { isAdmin } = useUser();
 
   // Logout function
   const handleLogout = async () => {
@@ -373,13 +375,15 @@ const UserAccountManagement = () => {
               className="profile-btn"
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
             >
-              Admin ▼
+              {isAdmin ? 'Admin' : 'Manager'} ▼
             </button>
             {showProfileDropdown && (
               <div className="dropdown-menu">
-                <div className="dropdown-item" onClick={() => scrollToSection('user-management')}>
-                  User Management
-                </div>
+                {isAdmin && (
+                  <div className="dropdown-item" onClick={() => scrollToSection('user-management')}>
+                    User Management
+                  </div>
+                )}
                 <div className="dropdown-item" onClick={() => scrollToSection('manage-account')}>
                   Change Password
                 </div>
@@ -392,8 +396,9 @@ const UserAccountManagement = () => {
         </div>
       </div>
 
-      {/* User Management Section */}
-      <div id="user-management" className="management-section">
+      {/* User Management Section - Admin Only */}
+      {isAdmin && (
+        <div id="user-management" className="management-section">
         <div className="section-header">
           <h2>User Management</h2>
           <p>Manage users, send invites, and handle pending invitations</p>
@@ -590,13 +595,14 @@ const UserAccountManagement = () => {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Manage Account Section */}
       <div id="manage-account" className="management-section">
         <div className="section-header">
           <h2>Manage Account</h2>
-          <p>Change your password and manage manager passwords</p>
+          <p>{isAdmin ? 'Change your password and manage manager passwords' : 'Change your password'}</p>
         </div>
 
         <div className="account-content">
@@ -672,8 +678,9 @@ const UserAccountManagement = () => {
             </div>
           </div>
 
-          <div className="account-section">
-            <h3>Change Manager Password</h3>
+          {isAdmin && (
+            <div className="account-section">
+              <h3>Change Manager Password</h3>
             <div className="manager-password-form">
               {managerPasswordStep === 1 ? (
                 <form onSubmit={handleManagerPasswordSubmit}>
@@ -770,6 +777,7 @@ const UserAccountManagement = () => {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

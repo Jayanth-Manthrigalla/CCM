@@ -27,6 +27,7 @@ async function setupDatabase() {
         id INT IDENTITY(1,1) PRIMARY KEY,
         firstName NVARCHAR(100) NOT NULL,
         lastName NVARCHAR(100) NOT NULL,
+        username NVARCHAR(255) UNIQUE NOT NULL,
         email NVARCHAR(255) UNIQUE NOT NULL,
         role NVARCHAR(50) NOT NULL CHECK (role IN ('Admin', 'Manager')),
         passwordHash NVARCHAR(255) NOT NULL,

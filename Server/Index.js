@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const adminAuthRouter = require('./adminAuth');
+const userAuthRouter = require('./userAuth');
+const unifiedAuthRouter = require('./unifiedAuth');
+const { requireAuth, requireAdminRole, requireAdminOrManager } = require('./unifiedAuth');
 const adminPasswordReset = require('./adminPasswordReset');
 const userManagement = require('./userManagement');
 
@@ -232,9 +235,9 @@ app.post('/api/contact', async (req, res) => {
 });
 
 
-// GET: fetch submissions with optional status filter
+// GET: fetch submissions with optional status filter (Admin and Manager access)
 // /api/submissions?status=active|deleted|archived|all
-app.get('/api/submissions', async (req, res) => {
+app.get('/api/submissions', requireAuth, requireAdminOrManager, async (req, res) => {
   const { status } = req.query;
   let query = 'SELECT * FROM Demo';
   if (status && status !== 'all') {
@@ -253,8 +256,8 @@ app.get('/api/submissions', async (req, res) => {
   }
 });
 
-// PATCH: update status (delete, restore, archive, unarchive)
-app.patch('/api/submissions/:id/status', async (req, res) => {
+// PATCH: update status (delete, restore, archive, unarchive) - Admin and Manager access
+app.patch('/api/submissions/:id/status', requireAuth, requireAdminOrManager, async (req, res) => {
   const { id } = req.params;
   console.log("Entering status update");
   const { status } = req.body;
@@ -275,7 +278,7 @@ app.patch('/api/submissions/:id/status', async (req, res) => {
 });
 
 // PATCH: mark as read/unread (now using status_read column)
-app.patch('/api/submissions/:id/read', async (req, res) => {
+app.patch('/api/submissions/:id/read', requireAuth, requireAdminOrManager, async (req, res) => {
   const { id } = req.params;
   const { read } = req.body;
   if (typeof read !== 'boolean') {
@@ -524,24 +527,9 @@ app.get('/api/debug-auth', (req, res) => {
   }
 });
 
-// Get all users (Admin only)
-app.get('/api/users', async (req, res) => {
+// Get all users (Admin only - managers cannot access user management)
+app.get('/api/users', requireAuth, requireAdminRole, async (req, res) => {
   try {
-    // Verify admin authentication
-    const token = req.cookies.authToken; // Changed from 'token' to 'authToken'
-    console.log('Token from cookies:', token ? 'Present' : 'Missing');
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' });
-    }
-
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
-      if (decoded.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
-      }
-    } catch (jwtError) {
-      return res.status(401).json({ success: false, message: 'Invalid token' });
-    }
 
     const result = await userManagement.getAllUsers();
     if (result.success) {
@@ -555,25 +543,10 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// Create invitation (Admin only)
-app.post('/api/invites', async (req, res) => {
+// Create invitation (Admin only - managers cannot invite users)
+app.post('/api/invites', requireAuth, requireAdminRole, async (req, res) => {
   try {
-    // Verify admin authentication
-    const token = req.cookies.authToken;
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' });
-    }
-
-    let adminEmail;
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey');
-      if (decoded.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
-      }
-      adminEmail = decoded.email;
-    } catch (jwtError) {
-      return res.status(401).json({ success: false, message: 'Invalid token' });
-    }
+    const adminEmail = req.user.email;
 
     const { email, firstName, lastName, role } = req.body;
     
@@ -935,6 +908,8 @@ app.post('/api/manager/change-password/confirm', async (req, res) => {
 });
 
 app.use(adminAuthRouter);
+app.use(userAuthRouter);
+app.use(unifiedAuthRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the CCM Website API");

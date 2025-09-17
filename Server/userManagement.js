@@ -174,16 +174,41 @@ async function acceptInvitation(token, password) {
     await transaction.begin();
     
     try {
-      // Create user
+        // Generate username from firstName + lastName
+      let baseUsername = (invite.firstName.trim() + invite.lastName.trim()).toLowerCase().replace(/[^a-z0-9]/g, '');
+      let username = baseUsername;
+      let counter = 1;
+      
+      // Check for username uniqueness and append number if needed
+      while (true) {
+        const usernameCheck = await transaction.request()
+          .input('checkUsername', sql.NVarChar(255), username)
+          .query('SELECT COUNT(*) as count FROM Users WHERE username = @checkUsername');
+        
+        if (usernameCheck.recordset[0].count === 0) {
+          break; // Username is unique
+        }
+        
+        username = `${baseUsername}${counter}`;
+        counter++;
+        
+        // Safety break to prevent infinite loop
+        if (counter > 1000) {
+          throw new Error('Unable to generate unique username');
+        }
+      }
+
+      // Create user with username
       await transaction.request()
         .input('firstName', sql.NVarChar(100), invite.firstName)
         .input('lastName', sql.NVarChar(100), invite.lastName)
+        .input('username', sql.NVarChar(255), username)
         .input('email', sql.NVarChar(255), invite.email)
         .input('role', sql.NVarChar(50), invite.role)
         .input('passwordHash', sql.NVarChar(255), passwordHash)
         .query(`
-          INSERT INTO Users (firstName, lastName, email, role, passwordHash, isActive)
-          VALUES (@firstName, @lastName, @email, @role, @passwordHash, 1)
+          INSERT INTO Users (firstName, lastName, username, email, role, passwordHash, isActive)
+          VALUES (@firstName, @lastName, @username, @email, @role, @passwordHash, 1)
         `);
       
       // Mark invite as used

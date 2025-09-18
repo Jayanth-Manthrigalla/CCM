@@ -589,8 +589,9 @@ app.post('/api/invites', requireAuth, requireAdminRole, async (req, res) => {
         });
         res.json({ 
           success: true, 
-          message: 'Invitation sent successfully',
-          inviteId: result.inviteId
+          message: `Invitation sent successfully. Username generated: ${result.username}`,
+          inviteId: result.inviteId,
+          username: result.username
         });
       } catch (emailError) {
         console.error('Failed to send invitation email:', emailError);
@@ -604,6 +605,28 @@ app.post('/api/invites', requireAuth, requireAdminRole, async (req, res) => {
     }
   } catch (error) {
     console.error('Error creating invitation:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Generate username preview
+app.post('/api/generate-username', requireAuth, requireAdminRole, async (req, res) => {
+  try {
+    const { firstName, lastName } = req.body;
+    
+    if (!firstName || !lastName) {
+      return res.status(400).json({ success: false, message: 'First name and last name are required' });
+    }
+    
+    const result = await userManagement.generateUniqueUsername(firstName, lastName);
+    
+    if (result.success) {
+      res.json({ success: true, username: result.username });
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    console.error('Error generating username:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

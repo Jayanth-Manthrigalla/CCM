@@ -40,6 +40,61 @@ function verifyToken(token, hash) {
   return bcrypt.compareSync(token, hash);
 }
 
+// Username Generation Functions
+
+// Generate unique username from firstName + lastName
+async function generateUniqueUsername(firstName, lastName) {
+  try {
+    const pool = await sql.connect(config);
+    
+    // Create base username: firstName + lastName (lowercase, no spaces, alphanumeric only)
+    let baseUsername = (firstName.trim() + lastName.trim())
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    
+    // Ensure minimum length
+    if (baseUsername.length < 3) {
+      baseUsername = baseUsername.padEnd(3, 'usr');
+    }
+    
+    let username = baseUsername;
+    let counter = Math.floor(Math.random() * 900) + 100; // Start with random 3-digit number
+    
+    // Check for username uniqueness in both Users and Invites tables
+    while (true) {
+      const usernameCheck = await pool.request()
+        .input('checkUsername', sql.NVarChar(255), username)
+        .query(`
+          SELECT COUNT(*) as count FROM (
+            SELECT username FROM Users WHERE username = @checkUsername
+            UNION ALL
+            SELECT username FROM Invites WHERE username = @checkUsername AND used = 0
+          ) AS combined_usernames
+        `);
+      
+      if (usernameCheck.recordset[0].count === 0) {
+        await pool.close();
+        return { success: true, username: username };
+      }
+      
+      // If username exists, append/increment number
+      username = `${baseUsername}${counter}`;
+      counter++;
+      
+      // Safety break to prevent infinite loop
+      if (counter > 999999) {
+        await pool.close();
+        return { success: false, message: 'Unable to generate unique username' };
+      }
+    }
+  } catch (error) {
+    console.error('Error generating unique username:', error);
+    return { success: false, message: 'Failed to generate username' };
+  }
+}
+
+
+
 // User Management Functions
 
 // Get all users
@@ -89,26 +144,40 @@ async function createInvite(inviteData, invitedBy) {
       return { success: false, message: 'Pending invitation already exists for this email' };
     }
     
-    // Create new invite
-    const result = await pool.request()
+    await pool.close();
+    
+    // Generate unique username
+    const usernameResult = await generateUniqueUsername(firstName, lastName);
+    if (!usernameResult.success) {
+      return usernameResult;
+    }
+    const username = usernameResult.username;
+    
+    // Reconnect for invite creation
+    const pool2 = await sql.connect(config);
+    
+    // Create new invite with username
+    const result = await pool2.request()
       .input('email', sql.NVarChar(255), email)
       .input('firstName', sql.NVarChar(100), firstName)
       .input('lastName', sql.NVarChar(100), lastName)
       .input('role', sql.NVarChar(50), role)
+      .input('username', sql.NVarChar(255), username)
       .input('tokenHash', sql.NVarChar(255), tokenHash)
       .input('expiresAt', sql.DateTime2, expiresAt)
       .input('invitedBy', sql.NVarChar(255), invitedBy)
       .query(`
-        INSERT INTO Invites (email, firstName, lastName, role, tokenHash, expiresAt, invitedBy)
+        INSERT INTO Invites (email, firstName, lastName, role, username, tokenHash, expiresAt, invitedBy)
         OUTPUT INSERTED.id
-        VALUES (@email, @firstName, @lastName, @role, @tokenHash, @expiresAt, @invitedBy)
+        VALUES (@email, @firstName, @lastName, @role, @username, @tokenHash, @expiresAt, @invitedBy)
       `);
     
-    await pool.close();
+    await pool2.close();
     
     return { 
       success: true, 
       inviteId: result.recordset[0].id,
+      username: username,
       token: token,
       expiresAt: expiresAt
     };
@@ -126,7 +195,7 @@ async function validateInviteToken(token) {
     // Get all non-expired, unused invites
     const result = await pool.request()
       .query(`
-        SELECT id, email, firstName, lastName, role, tokenHash, expiresAt
+        SELECT id, email, firstName, lastName, role, username, tokenHash, expiresAt
         FROM Invites 
         WHERE used = 0 AND expiresAt > GETDATE()
       `);
@@ -142,7 +211,8 @@ async function validateInviteToken(token) {
             email: invite.email,
             firstName: invite.firstName,
             lastName: invite.lastName,
-            role: invite.role
+            role: invite.role,
+            username: invite.username
           }
         };
       }
@@ -174,29 +244,8 @@ async function acceptInvitation(token, password) {
     await transaction.begin();
     
     try {
-        // Generate username from firstName + lastName
-      let baseUsername = (invite.firstName.trim() + invite.lastName.trim()).toLowerCase().replace(/[^a-z0-9]/g, '');
-      let username = baseUsername;
-      let counter = 1;
-      
-      // Check for username uniqueness and append number if needed
-      while (true) {
-        const usernameCheck = await transaction.request()
-          .input('checkUsername', sql.NVarChar(255), username)
-          .query('SELECT COUNT(*) as count FROM Users WHERE username = @checkUsername');
-        
-        if (usernameCheck.recordset[0].count === 0) {
-          break; // Username is unique
-        }
-        
-        username = `${baseUsername}${counter}`;
-        counter++;
-        
-        // Safety break to prevent infinite loop
-        if (counter > 1000) {
-          throw new Error('Unable to generate unique username');
-        }
-      }
+      // Use the username that was generated during invite creation
+      const username = invite.username;
 
       // Create user with username
       await transaction.request()
@@ -405,6 +454,7 @@ module.exports = {
   acceptInvitation,
   getPendingInvites,
   resendInvite,
+  generateUniqueUsername,
   
   // Manager password management
   createManagerPasswordChangeOTP,

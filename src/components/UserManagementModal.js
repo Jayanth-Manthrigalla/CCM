@@ -21,6 +21,8 @@ const UserManagementModal = ({ isVisible, onClose }) => {
     role: 'manager'
   });
   const [submitting, setSubmitting] = useState(false);
+  const [previewUsername, setPreviewUsername] = useState('');
+  const [previewingUsername, setPreviewingUsername] = useState(false);
 
   useEffect(() => {
     if (isVisible) {
@@ -89,6 +91,36 @@ const UserManagementModal = ({ isVisible, onClose }) => {
     }
   };
 
+  const handlePreviewUsername = async () => {
+    if (!inviteForm.firstName.trim() || !inviteForm.lastName.trim()) {
+      setError('First name and last name are required to preview username');
+      return;
+    }
+
+    setPreviewingUsername(true);
+    setError('');
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/generate-username', {
+        firstName: inviteForm.firstName,
+        lastName: inviteForm.lastName
+      }, {
+        withCredentials: true
+      });
+
+      if (response.data.success) {
+        setPreviewUsername(response.data.username);
+      } else {
+        setError(response.data.message || 'Failed to generate username preview');
+      }
+    } catch (error) {
+      console.error('Error previewing username:', error);
+      setError(error.response?.data?.message || 'Failed to preview username');
+    } finally {
+      setPreviewingUsername(false);
+    }
+  };
+
   const handleInviteSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -101,8 +133,10 @@ const UserManagementModal = ({ isVisible, onClose }) => {
       });
       
       if (response.data.success) {
-        setSuccess('Invitation sent successfully!');
+        const username = response.data.username;
+        setSuccess(`Invitation sent successfully! Username generated: ${username}`);
         setInviteForm({ email: '', firstName: '', lastName: '', role: 'manager' });
+        setPreviewUsername(''); // Clear preview
         // Refresh invites if on that tab
         if (activeTab === 'invites') {
           fetchInvites();
@@ -239,7 +273,10 @@ const UserManagementModal = ({ isVisible, onClose }) => {
                     <input
                       type="text"
                       value={inviteForm.firstName}
-                      onChange={(e) => setInviteForm({...inviteForm, firstName: e.target.value})}
+                      onChange={(e) => {
+                        setInviteForm({...inviteForm, firstName: e.target.value});
+                        setPreviewUsername(''); // Clear preview when name changes
+                      }}
                       required
                       placeholder="Enter first name"
                     />
@@ -249,7 +286,10 @@ const UserManagementModal = ({ isVisible, onClose }) => {
                     <input
                       type="text"
                       value={inviteForm.lastName}
-                      onChange={(e) => setInviteForm({...inviteForm, lastName: e.target.value})}
+                      onChange={(e) => {
+                        setInviteForm({...inviteForm, lastName: e.target.value});
+                        setPreviewUsername(''); // Clear preview when name changes
+                      }}
                       required
                       placeholder="Enter last name"
                     />
@@ -276,6 +316,26 @@ const UserManagementModal = ({ isVisible, onClose }) => {
                   >
                     <option value="manager">Manager</option>
                   </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Username Preview</label>
+                  <div className="username-preview-section">
+                    <button 
+                      type="button" 
+                      className="preview-btn" 
+                      onClick={handlePreviewUsername}
+                      disabled={previewingUsername || !inviteForm.firstName.trim() || !inviteForm.lastName.trim()}
+                    >
+                      {previewingUsername ? 'Generating...' : 'Preview Username'}
+                    </button>
+                    {previewUsername && (
+                      <div className="username-preview">
+                        <span className="username-text">Username: <strong>{previewUsername}</strong></span>
+                        <small className="username-note">This username will be assigned when the invite is sent.</small>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <button type="submit" className="invite-btn" disabled={submitting}>

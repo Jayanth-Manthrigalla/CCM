@@ -121,7 +121,7 @@ const AdminLogin = () => {
               <button type="submit">Login</button>
             </form>
             <div style={{ marginTop: '1rem' }}>
-              <button type="button" className="forgot-link" style={{ background: 'none', border: 'none', color: '#3c94e1', cursor: 'pointer', textDecoration: 'underline', fontSize: '1rem' }} onClick={() => setShowForgot(true)}>
+              <button type="button" className="forgot-link" style={{ background: 'none', border: 'none', color: '#3c94e1', cursor: 'pointer', textDecoration: 'underline', fontSize: '1rem' }} onClick={() => navigate('/forgot-password')}>
                 Forgot Password?
               </button>
             </div>

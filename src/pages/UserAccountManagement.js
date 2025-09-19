@@ -550,6 +550,7 @@ const UserAccountManagement = () => {
                     <thead>
                       <tr>
                         <th>Name</th>
+                        <th>Username</th>
                         <th>Email</th>
                         <th>Role</th>
                         <th>Status</th>
@@ -562,6 +563,7 @@ const UserAccountManagement = () => {
                       {invites.map(invite => (
                         <tr key={invite.id}>
                           <td>{invite.firstName} {invite.lastName}</td>
+                          <td><code>{invite.username}</code></td>
                           <td>{invite.email}</td>
                           <td><span className="role-badge">{invite.role}</span></td>
                           <td>
@@ -585,7 +587,7 @@ const UserAccountManagement = () => {
                       ))}
                       {invites.length === 0 && (
                         <tr>
-                          <td colSpan="7" className="no-data">No pending invitations</td>
+                          <td colSpan="8" className="no-data">No pending invitations</td>
                         </tr>
                       )}
                     </tbody>

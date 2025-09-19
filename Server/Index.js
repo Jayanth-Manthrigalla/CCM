@@ -493,6 +493,150 @@ app.post('/api/admin-change-password-confirm', async (req, res) => {
   }
 });
 
+// Unified Password Reset API Endpoints (for both Admins and Managers)
+
+// Step 1: Initiate password reset - check email and send OTP
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
+    }
+    
+    const result = await userManagement.initiatePasswordReset(email);
+    
+    if (result.success) {
+      // Send OTP email
+      const emailContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
+          <p>Hello ${result.userData.firstName} ${result.userData.lastName},</p>
+          <p>You requested a password reset for your CCM Website account. Please use the following OTP to reset your password:</p>
+          <div style="background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #0369a1; font-size: 36px; margin: 0; letter-spacing: 8px; font-family: 'Courier New', monospace;">${result.otp}</h1>
+          </div>
+          <p><strong>This OTP will expire in 10 minutes.</strong></p>
+          <p>If you did not request this password reset, please ignore this email and ensure your account is secure.</p>
+          <p>Best regards,<br>CCM Website Team</p>
+        </div>
+      `;
+
+      try {
+        const accessToken = await getAccessToken();
+        await sendEmail(accessToken, {
+          to: email,
+          subject: 'Password Reset OTP - CCM Website',
+          body: emailContent
+        });
+        
+        res.json({ 
+          success: true, 
+          message: 'Password reset OTP has been sent to your email address',
+          userType: result.userType
+        });
+      } catch (emailError) {
+        console.error('Failed to send password reset email:', emailError);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Failed to send reset email. Please try again.' 
+        });
+      }
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('Error in forgot password:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Step 2: Verify OTP for password reset
+app.post('/api/verify-reset-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    }
+    
+    const result = await userManagement.verifyPasswordResetOTP(email, otp);
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: result.message,
+        userType: result.userType
+      });
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('Error verifying reset OTP:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Step 3: Reset password after OTP verification
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword, userType } = req.body;
+    
+    if (!email || !newPassword || !confirmPassword || !userType) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+    
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+    
+    // Validate password strength
+    if (newPassword.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password must be at least 8 characters long' 
+      });
+    }
+    
+    const result = await userManagement.resetUserPassword(email, newPassword, userType);
+    
+    if (result.success) {
+      // Send confirmation email
+      try {
+        const accessToken = await getAccessToken();
+        await sendEmail(accessToken, {
+          to: email,
+          subject: 'Password Successfully Reset - CCM Website',
+          body: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #22c55e; text-align: center;">Password Reset Successful</h2>
+              <p>Your password has been successfully reset on ${new Date().toLocaleString()}.</p>
+              <p>You can now login with your new password.</p>
+              <p>If you did not make this change, please contact support immediately.</p>
+              <p>Best regards,<br>CCM Website Team</p>
+            </div>
+          `
+        });
+      } catch (emailError) {
+        console.error('Failed to send password reset confirmation email:', emailError);
+      }
+      
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // User Management API Endpoints
 
 // Debug endpoint to check cookies

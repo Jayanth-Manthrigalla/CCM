@@ -446,6 +446,171 @@ async function verifyManagerPasswordChangeOTP(adminEmail, managerEmail, otp) {
   }
 }
 
+// Password Reset Functions
+
+// Initiate password reset - check email in both tables and send OTP
+async function initiatePasswordReset(email) {
+  try {
+    const pool = await sql.connect(config);
+    
+    // Check Admins table first (higher priority)
+    let adminResult = await pool.request()
+      .input('email', sql.NVarChar(255), email)
+      .query('SELECT Id as id, username, email FROM Admins WHERE email = @email');
+    
+    let userType = null;
+    let userData = null;
+    
+    if (adminResult.recordset.length > 0) {
+      userType = 'admin';
+      userData = {
+        id: adminResult.recordset[0].id,
+        firstName: 'Admin', // Default name for admin
+        lastName: 'User',
+        email: adminResult.recordset[0].email,
+        role: 'admin'
+      };
+    } else {
+      // Check if email exists in Users table (managers)
+      let userResult = await pool.request()
+        .input('email', sql.NVarChar(255), email)
+        .query('SELECT id, firstName, lastName, email, role FROM Users WHERE email = @email AND isActive = 1');
+      
+      if (userResult.recordset.length > 0) {
+        userType = 'user';
+        userData = userResult.recordset[0];
+      }
+    }
+    
+    if (!userData) {
+      await pool.close();
+      return { success: false, message: 'User not found. Please check your email address.' };
+    }
+    
+    // Generate OTP
+    const otp = generateOTP();
+    const otpHash = hashToken(otp);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+    
+    // Store OTP in OtpRecords table
+    // Use adminEmail for admin users, managerEmail for manager users
+    const result = await pool.request()
+      .input('adminEmail', sql.NVarChar(255), userType === 'admin' ? email : '')
+      .input('managerEmail', sql.NVarChar(255), userType === 'user' ? email : '')
+      .input('otpHash', sql.NVarChar(255), otpHash)
+      .input('expiresAt', sql.DateTime2, expiresAt)
+      .query(`
+        INSERT INTO OtpRecords (adminEmail, managerEmail, operationType, otpHash, expiresAt, used, createdAt)
+        OUTPUT INSERTED.id
+        VALUES (@adminEmail, @managerEmail, 'password_reset', @otpHash, @expiresAt, 0, GETDATE())
+      `);
+    
+    await pool.close();
+    
+    return { 
+      success: true, 
+      otp: otp,
+      otpId: result.recordset[0].id,
+      userType: userType,
+      userData: userData,
+      expiresAt: expiresAt
+    };
+  } catch (error) {
+    console.error('Error initiating password reset:', error);
+    return { success: false, message: 'Failed to initiate password reset' };
+  }
+}
+
+// Verify OTP for password reset
+async function verifyPasswordResetOTP(email, otp) {
+  try {
+    const pool = await sql.connect(config);
+    
+    // Get all active OTP records for this email
+    const result = await pool.request()
+      .input('email', sql.NVarChar(255), email)
+      .query(`
+        SELECT id, otpHash,
+               CASE WHEN adminEmail = @email THEN 'admin' 
+                    WHEN managerEmail = @email THEN 'user' 
+                    ELSE NULL END as userType,
+               expiresAt
+        FROM OtpRecords 
+        WHERE (adminEmail = @email OR managerEmail = @email) 
+        AND operationType = 'password_reset' 
+        AND used = 0 AND expiresAt > GETDATE()
+      `);
+    
+    if (result.recordset.length === 0) {
+      await pool.close();
+      return { success: false, message: 'Invalid or expired OTP' };
+    }
+    
+    // Find matching OTP using bcrypt verification
+    let matchedRecord = null;
+    for (const record of result.recordset) {
+      if (verifyToken(otp, record.otpHash)) {
+        matchedRecord = record;
+        break;
+      }
+    }
+    
+    if (!matchedRecord) {
+      await pool.close();
+      return { success: false, message: 'Invalid or expired OTP' };
+    }
+    
+    // Mark OTP as used
+    await pool.request()
+      .input('otpId', sql.Int, matchedRecord.id)
+      .query('UPDATE OtpRecords SET used = 1 WHERE id = @otpId');
+    
+    await pool.close();
+    
+    return { 
+      success: true, 
+      userType: matchedRecord.userType,
+      message: 'OTP verified successfully' 
+    };
+  } catch (error) {
+    console.error('Error verifying password reset OTP:', error);
+    return { success: false, message: 'Failed to verify OTP' };
+  }
+}
+
+// Reset password after OTP verification
+async function resetUserPassword(email, newPassword, userType) {
+  try {
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const pool = await sql.connect(config);
+    
+    let updateQuery;
+    if (userType === 'admin') {
+      // Admins table uses 'password' column, not 'passwordHash'
+      updateQuery = 'UPDATE Admins SET password = @passwordHash WHERE email = @email';
+    } else {
+      // Users table uses 'passwordHash' column
+      updateQuery = 'UPDATE Users SET passwordHash = @passwordHash WHERE email = @email';
+    }
+    
+    const result = await pool.request()
+      .input('email', sql.NVarChar(255), email)
+      .input('passwordHash', sql.NVarChar(255), passwordHash)
+      .query(updateQuery);
+    
+    await pool.close();
+    
+    if (result.rowsAffected[0] === 0) {
+      return { success: false, message: 'User not found' };
+    }
+    
+    return { success: true, message: 'Password reset successfully' };
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    return { success: false, message: 'Failed to reset password' };
+  }
+}
+
 module.exports = {
   // User management
   getAllUsers,
@@ -459,6 +624,11 @@ module.exports = {
   // Manager password management
   createManagerPasswordChangeOTP,
   verifyManagerPasswordChangeOTP,
+  
+  // Password reset functions
+  initiatePasswordReset,
+  verifyPasswordResetOTP,
+  resetUserPassword,
   
   // Utilities
   generateSecureToken,

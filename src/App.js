@@ -21,6 +21,7 @@ import AdminProtectedRoute from './components/AdminProtectedRoute';
 import AdminDashboard from './pages/AdminDashboard';
 import UserAccountManagement from './pages/UserAccountManagement';
 import AcceptInvite from './pages/AcceptInvite';
+import ForgotPassword from './pages/ForgotPassword';
 import { UserProvider } from './contexts/UserContext';
 import ContactSection from './components/ContactSection';
 import { useEffect } from 'react';
@@ -57,6 +58,8 @@ function App() {
           <Route path="/contact" element={<ContactSection />} />
           {/* your existing routes */}
           <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route
             path="/admin-dashboard"
